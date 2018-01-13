@@ -21,10 +21,17 @@
 -- psql#
 
 
+-- WITH class_lengths AS (
+--     select length(relname) len from pg_class 
+--  )
+-- 
+--SELECT * FROM show_histogram((SELECT histogram(len, 1, 42, 15) FROM class_lengths))SELECT bucket,range,count,bar FROM show_histogram((SELECT histogram(len, 1, 42, 15) FROM class_lengths))
+;
+
 BEGIN;
 
 CREATE OR REPLACE FUNCTION histogram_version() RETURNS TEXT AS $$
-    SELECT '0.1.0'::text;
+    SELECT '0.1.0_beaver'::text;
 $$ LANGUAGE SQL;
 
 DROP TYPE IF EXISTS histogram_result CASCADE;
@@ -100,15 +107,22 @@ CREATE OR REPLACE FUNCTION show_histogram(h histogram_result[])
 RETURNS TABLE(bucket INTEGER, range numrange, count INTEGER, overflow INTEGER, bar TEXT, cumbar TEXT, cumsum INTEGER, cumpct float8) AS $$
 DECLARE
 	r histogram_result;
-	min_count integer := (select min(x.total) from unnest(h) as x);
-	max_count integer := (select max(x.total) from unnest(h) as x);
-	total_count integer := (select sum(x.total) from unnest(h) as x);
-	bar_max_width integer := 30;
-	bar_tick_size float8 := bar_max_width / (max_count - min_count)::float8;
+	min_count integer;
+	max_count integer;
+	total_count integer;
+	bar_max_width integer;
+    bar_tick_size float8;	
 	bar text;
 	cumsum integer := 0;
 	cumpct float8;
-BEGIN
+begin
+	
+	min_count := (select min(x.total) from unnest(h) as x);
+	max_count := (select max(x.total) from unnest(h) as x);
+    total_count := (select sum(x.total) from unnest(h) as x);
+	bar_max_width := 30;
+    bar_tick_size := bar_max_width / (max_count - min_count)::float8;
+
 	FOREACH r IN ARRAY h LOOP
 		IF r.bucket IS NULL THEN
 			CONTINUE;
